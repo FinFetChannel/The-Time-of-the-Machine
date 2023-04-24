@@ -132,16 +132,19 @@ async def main():
 
         for i, entity in enumerate(entity_data): # type, x, y, direction, distance, status, cooldown
             if entity[0] in [0]:
-                if entity[5]:
-                    move_entity(entity, 0.5, mapa, elapsed_time)
-                elif entity[0] == 0:
+                
+                if entity[0] == 0:
                     in_FOV, angle, angle2, angle2degree = vision(entity[1], entity[2], entity[3], FOV, [x_pos, y_pos])
-                    entity[3] =  angle + random.uniform(-0.1, 0.1)
-                    if in_FOV and total_time - entity[6] > 0:
+                    if (in_FOV and entity[4] < 10) or entity[5]:
+                        entity[5] = 1
+                        entity[3] =  angle + random.uniform(-0.1, 0.1)
+                    
+                    if entity[5] and total_time - entity[6] > 0:
                         entity[6] = total_time + .5
                         enemy_shots.append([0.38, entity[1]+0.1*math.cos(entity[3]), entity[2]+0.1*math.sin(entity[3]), entity[3], 0.1])
-                        
-            
+                    else:
+                        move_entity(entity, 0.5, mapa, elapsed_time)
+                
             draw_sprite(screen, x_pos, y_pos, rot, FOV, mapa, entity, sprites, offset, animation_time)
             
             if entity[7] <= 0:
@@ -178,6 +181,7 @@ def collision_entities(shot, entity_data):
     for entity in entity_data:
         if math.sqrt((shot[1]-entity[1])**2 + (shot[2]-entity[2])**2) < 0.1:
             entity[7] -= 1
+            entity[5] = 1
             return 1
     return 0
 
@@ -331,9 +335,10 @@ def draw_sprite(screen, x_pos, y_pos, rot, FOV, mapa, entity, sprites, offset, t
                 facing_angle = int(((entity[3] - angle -3*math.pi/4)%(2*math.pi))/(math.pi/2))
                 if type(sprites[entity[0]][0]) == list:
                     if entity[5] == 1: # animated
-                        selected_sprite = sprites[entity[0]][1+int(total_time*3)%2][facing_angle]
-                    else: #not animated/moving
                         selected_sprite = sprites[entity[0]][0][facing_angle]
+                    else: #not animated/moving
+                        selected_sprite = sprites[entity[0]][1+int(total_time*3)%2][facing_angle]
+                        
                 else:
                     selected_sprite = sprites[entity[0]][facing_angle]
             else:
