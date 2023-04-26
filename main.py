@@ -29,9 +29,9 @@ async def main():
                   'What is that noise?',
                   'The robots are coming',
                   'Bullet time!',
-                  'They want to take my job',
-                  'I have to get rid of them',
-                  'And find a way out',
+                  'They want my job',
+                  'Need to get rid of them',
+                  'Have find a way out',
                   'There are so many',
                   'Almost there',
                   'Break time is over',
@@ -104,8 +104,8 @@ async def main():
     running = 1
     p_mouse_target = list(pg.mouse.get_rel())
     status = 'start_menu'
-    last_frame = pg.surface.Surface(screen_size)
-    last_frame.fill((127,127,127))
+    last_frame = pg.transform.scale(pg.image.load('sprites/thumb.jpg').convert(), screen_size)
+
     while running:
         clicked = 0
         p_mouse = pg.mouse.get_pos()
@@ -146,6 +146,7 @@ async def main():
             x_pos, y_pos, rot, rot_v, found_exit = movement(x_pos, y_pos, rot, rot_v, mapa, 2*elapsed_time, p_mouse_target)
             if found_exit:
                 status = 'next_level'
+                last_frame = screen.copy()
                 if level == len(levels) - 1:
                     status = 'end_screen'
                 pg.mouse.set_visible(1)
@@ -225,6 +226,7 @@ async def main():
                         health -= 1
                         if health < 0:
                             status = 'dead'
+                            last_frame = screen.copy()
                             pg.mouse.set_visible(1)
                 else:
                     draw_point(screen, x_pos, y_pos, rot, FOV, shot[1:3], offset, shot[0], (255,55,55), 2*screen_scale)
@@ -232,12 +234,16 @@ async def main():
                 screen.blit(scaled_gun, (screen_size[0]/2+3*screen_scale*math.sin(total_time*3), screen_size[1]/2+2*screen_scale*math.cos(total_time*3)))
 
         elif status == 'start_menu':
+            if button('Time of the machine', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0):pass
             if button('Play!', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 level = -1
                 health = 20
                 status = 'next_level'
             if button('Options', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
                 status = 'options'
+                previous_screen = 'start_menu'
+            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+                status = 'controls'
                 previous_screen = 'start_menu'
         
         elif status == 'options':
@@ -271,6 +277,9 @@ async def main():
                 health = 10
             if button('Start menu', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
                 status = 'start_menu'
+            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+                status = 'controls'
+                previous_screen = 'dead'
         elif status == 'pause':
             if button('Continue', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 status = 'playing'
@@ -279,21 +288,35 @@ async def main():
             if button('Options', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
                 status = 'options'
                 previous_screen = 'pause'
+            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+                status = 'controls'
+                previous_screen = 'pause'
         elif status == 'next_level':
-            if button(level_msgs[level+1], font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen):pass
+            if button('Level '+str(level+2), font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0):pass
+            if button(level_msgs[level+1], font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen, 0):pass
             if button('Continue', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 status = 'level_reload'
                 level += 1
             if button('Options', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
                 status = 'options'
                 previous_screen = 'next_level'
+            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+                status = 'controls'
+                previous_screen = 'next_level'
         elif status == 'end_screen':
-            if button('I did it!', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen): pass
-            if button('My job is safe!', font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen): pass
-            if button('For now...', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen): pass
-            if button('A game by FinFET -> YouTube', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen): pass
+            if button('I did it!', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('My job is safe!', font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('For now...', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('A game by FinFET -> YouTube', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen, 0): pass
             if button('Start menu', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
                 status = 'start_menu'
+        elif status == 'controls':
+            if button('WASD/Arrows - Movement', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('Mouse - Aim', font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('Space - Bullet time', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('F - jump', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('Back', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+                status = previous_screen
         elif status == 'level_reload':
             mapa, entity_data = maps.read_map(pg.image.load('maps/map'+str(level)+'.png'))
             x_pos = levels[level][0]
@@ -324,12 +347,13 @@ async def main():
 
         await asyncio.sleep(0)  # very important, and keep it 0
 
-def button(text, font, height, p_mouse, clicked, screen_size, screen):
-    button_sprite = font.render(text, 0, (255,255,255))
+def button(text, font, height, p_mouse, clicked, screen_size, screen, with_bg=1):
+    button_sprite = font.render(text, 0, (255,255,255-255*with_bg))
     button_rect = button_sprite.get_rect()
     button_rect.center = screen_size[0]/2, height
-
-    if button_rect.collidepoint(p_mouse):
+    
+    pg.draw.rect(screen, (150-100*with_bg, 25+100*with_bg, 25+100*with_bg), button_rect)
+    if button_rect.collidepoint(p_mouse) and with_bg:
         pg.draw.rect(screen, (22, 100, 100), button_rect)
         if clicked: return 1
     
