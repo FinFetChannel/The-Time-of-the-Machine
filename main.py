@@ -13,9 +13,9 @@ FOV =75
 async def main():
     pg.init()
     pg.mixer.init()
-    music = pg.mixer.Sound('music5.ogg')
-    music.set_volume(0.5)
-    music.play(-1)
+    pg.mixer.music.load('music5.ogg')
+    pg.mixer.music.set_volume(0.5)
+    pg.mixer.music.play(-1)
     shot_sound = pg.mixer.Sound('shot.ogg')
     screen_scale = 2
     screen_size = [int(192*screen_scale), 4*int(27*screen_scale)]
@@ -105,14 +105,16 @@ async def main():
     p_mouse_target = list(pg.mouse.get_rel())
     status = 'start_menu'
     last_frame = pg.transform.scale(pg.image.load('sprites/thumb.jpg').convert(), screen_size)
-
+    last_bullet = 0
     while running:
+        elapsed_time = min(0.05, clock.tick()*0.001)
+        total_time += elapsed_time
         clicked = 0
         p_mouse = pg.mouse.get_pos()
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 running = 0
-            if event.type == pg.MOUSEBUTTONDOWN:
+            if event.type == pg.MOUSEBUTTONDOWN and total_time - last_bullet > 0:
                 clicked = 1
                     
             if event.type == pg.KEYDOWN and status == 'playing':
@@ -122,21 +124,21 @@ async def main():
                     pg.mouse.set_visible(1)
                 if event.key == pg.K_f and vertical_pos == 0:
                     vertical_vel = 3
-                if event.key == pg.K_SPACE and bullet_time + 5 < total_time:
-                    bullet_time = total_time + 5
+                if event.key == pg.K_SPACE:
+                    if bullet_time + 5 < total_time:
+                        bullet_time = total_time + 5
+                    elif bullet_time > total_time:
+                        bullet_time = total_time
             elif event.type == pg.KEYDOWN and status != 'playing' and event.key == pg.K_ESCAPE: running = 0
         
         if status != 'playing':
             screen.blit(last_frame, (0,0))
         if status == 'playing':
-            if clicked  and level > 0:
+            if clicked  and level > 0 and total_time - last_bullet > 0.1:
+                last_bullet = total_time
                 player_shots.append([0.45, x_pos+0.5*math.cos(rot), y_pos+0.5*math.sin(rot), rot+random.uniform(-0.01, 0.01), rot_v])
                 shot_sound.set_volume(0.5)
                 shot_sound.play()
-
-            elapsed_time = min(0.05, clock.tick()*0.001)
-            total_time += elapsed_time
-            fps = int(clock.get_fps())
             
             if bullet_time > total_time:
                 elapsed_time *= 0.1
@@ -182,13 +184,19 @@ async def main():
                     
                     if entity[0] == 0:
                         in_FOV, angle, angle2, angle2degree = vision(entity[1], entity[2], entity[3], FOV, [x_pos, y_pos])
-                        if (in_FOV and entity[4] < 10) or entity[5]:
-                            entity[5] = 1
-                            entity[3] =  angle + random.uniform(-0.1, 0.1)
                         
-                        if entity[5] and total_time - entity[6] > 0:
-                            entity[6] = total_time + .5
-                            enemy_shots.append([0.38, entity[1]+0.01*math.cos(entity[3]), entity[2]+0.01*math.sin(entity[3]), entity[3], 0])
+                        if in_FOV and entity[4] < 10 or entity[5] > 0:
+                            x, y, dist = lodev_DDA(entity[1], entity[2], angle, mapa)
+                            entity[3] =  angle + random.uniform(-0.1, 0.1)
+                            if entity[4]-0.2 < dist:
+                                entity[5] = 1
+                            elif entity[5] == 1:
+                                entity[5] = 2
+
+                        
+                        if entity[5] == 1 and animation_time - entity[6] > 0:
+                            entity[6] = animation_time + .2
+                            enemy_shots.append([0.38, entity[1]+0.01*math.cos(angle), entity[2]+0.01*math.sin(angle), angle, 0])
                             shot_sound.set_volume(min(1, 0.5/entity[5]))
                             shot_sound.play()
                         elif entity[4] > 1 or entity[5] == 0:
@@ -227,6 +235,7 @@ async def main():
                         if health < 0:
                             status = 'dead'
                             last_frame = screen.copy()
+                            last_bullet = total_time + 1
                             pg.mouse.set_visible(1)
                 else:
                     draw_point(screen, x_pos, y_pos, rot, FOV, shot[1:3], offset, shot[0], (255,55,55), 2*screen_scale)
@@ -234,22 +243,28 @@ async def main():
                 screen.blit(scaled_gun, (screen_size[0]/2+3*screen_scale*math.sin(total_time*3), screen_size[1]/2+2*screen_scale*math.cos(total_time*3)))
 
         elif status == 'start_menu':
-            if button('Time of the machine', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0):pass
+            if button('Time of the machine', font, screen_size[1]/2-24*screen_scale, p_mouse, clicked, screen_size, screen, 0):pass
             if button('Play!', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 level = -1
                 health = 20
                 status = 'next_level'
-            if button('Options', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
+            if button('Options', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'options'
                 previous_screen = 'start_menu'
-            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('Controls', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'controls'
                 previous_screen = 'start_menu'
         
         elif status == 'options':
-            if button('Resolution: '+str(screen_size[0])+'x'+str(screen_size[1]), font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen):
-                screen_scale = max(1, (screen_scale+1)%11)
+            if button('< Resolution: '+str(screen_size[0])+'x'+str(screen_size[1])+' >', font, screen_size[1]/2-12*screen_scale, p_mouse, clicked, screen_size, screen):
+                if p_mouse[0] > screen_size[0]/2:
+                    screen_scale = (screen_scale+1)%7
+                    if screen_scale == 0: screen_scale = 1
+                else:
+                    screen_scale = (screen_scale-1)%7
+                    if screen_scale == 0: screen_scale = 6
                 screen_size = [int(192*screen_scale), 4*int(27*screen_scale)]
+                last_frame = pg.transform.scale(last_frame, screen_size)
                 mod = FOV/screen_size[0]
                 screen = pg.display.set_mode(screen_size, pg.SCALED)
                 sky = pg.transform.smoothscale(pg.image.load('textures/skybox.png').convert(), (12*screen_size[0]*60/FOV, 3*screen_size[1]))
@@ -257,66 +272,74 @@ async def main():
                 halfvres = int(screen_size[1]/(2*floor_scale))
                 frame = np.zeros([hres, halfvres*2, 3])
                 scaled_gun = pg.transform.scale(gun, (gun_size[0]*screen_scale/2, gun_size[1]*screen_scale/2))
+                font = pg.font.SysFont(None, 12*screen_scale, 1)
 
             if button(graphics[graphics_low], font, screen_size[1]/2 , p_mouse, clicked, screen_size, screen):
                 graphics_low = not(graphics_low)
 
-            if not graphics_low and button('Floor upscaling: '+str(floor_scale), font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
+            if not graphics_low and button('< Floor upscaling: '+str(floor_scale) + ' >', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen):
                 floor_scale = max(1, (floor_scale+1)%5)
                 hres = int(screen_size[0]/floor_scale)
                 halfvres = int(screen_size[1]/(2*floor_scale))
                 frame = np.zeros([hres, halfvres*2, 3])
 
-            if button('Back', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('Back', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = previous_screen
         
         elif status == 'dead':
-            if button('Oh no! They got me!', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen):pass
+            if button('Oh no! They got me!', font, screen_size[1]/2-24*screen_scale, p_mouse, clicked, screen_size, screen):pass
             if button('Restart level', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 status = 'level_reload'
                 health = 10
-            if button('Start menu', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
+            if button('Start menu', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'start_menu'
-            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('Controls', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'controls'
                 previous_screen = 'dead'
+        
         elif status == 'pause':
             if button('Continue', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 status = 'playing'
+                last_bullet = total_time
+                bullet_time = total_time
                 rot_v = 0
                 pg.mouse.set_visible(0)
-            if button('Options', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
+            if button('Options', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'options'
                 previous_screen = 'pause'
-            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('Controls', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'controls'
                 previous_screen = 'pause'
+        
         elif status == 'next_level':
-            if button('Level '+str(level+2), font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0):pass
-            if button(level_msgs[level+1], font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen, 0):pass
+            if button('Level '+str(level+2), font, screen_size[1]/2-24*screen_scale, p_mouse, clicked, screen_size, screen, 0):pass
+            if button(level_msgs[level+1], font, screen_size[1]/2-12*screen_scale, p_mouse, clicked, screen_size, screen, 0):pass
             if button('Continue', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen):
                 status = 'level_reload'
                 level += 1
-            if button('Options', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen):
+            if button('Options', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'options'
                 previous_screen = 'next_level'
-            if button('Controls', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('Controls', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'controls'
                 previous_screen = 'next_level'
+        
         elif status == 'end_screen':
-            if button('I did it!', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0): pass
-            if button('My job is safe!', font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('I did it!', font, screen_size[1]/2-24*screen_scale, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('My job is safe!', font, screen_size[1]/2-12*screen_scale, p_mouse, clicked, screen_size, screen, 0): pass
             if button('For now...', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen, 0): pass
-            if button('A game by FinFET -> YouTube', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen, 0): pass
-            if button('Start menu', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('A game by FinFET -> YouTube', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('Start menu', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = 'start_menu'
+        
         elif status == 'controls':
-            if button('WASD/Arrows - Movement', font, screen_size[1]/2-50, p_mouse, clicked, screen_size, screen, 0): pass
-            if button('Mouse - Aim', font, screen_size[1]/2-25, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('WASD/Arrows - Movement', font, screen_size[1]/2-24*screen_scale, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('Mouse - Aim', font, screen_size[1]/2-12*screen_scale, p_mouse, clicked, screen_size, screen, 0): pass
             if button('Space - Bullet time', font, screen_size[1]/2, p_mouse, clicked, screen_size, screen, 0): pass
-            if button('F - jump', font, screen_size[1]/2+25, p_mouse, clicked, screen_size, screen, 0): pass
-            if button('Back', font, screen_size[1]/2+50, p_mouse, clicked, screen_size, screen):
+            if button('F - jump', font, screen_size[1]/2+12*screen_scale, p_mouse, clicked, screen_size, screen, 0): pass
+            if button('Back', font, screen_size[1]/2+24*screen_scale, p_mouse, clicked, screen_size, screen):
                 status = previous_screen
+        
         elif status == 'level_reload':
             mapa, entity_data = maps.read_map(pg.image.load('maps/map'+str(level)+'.png'))
             x_pos = levels[level][0]
@@ -348,11 +371,11 @@ async def main():
         await asyncio.sleep(0)  # very important, and keep it 0
 
 def button(text, font, height, p_mouse, clicked, screen_size, screen, with_bg=1):
-    button_sprite = font.render(text, 0, (255,255,255-255*with_bg))
+    button_sprite = font.render(text, 0, (255,255,255-155*with_bg))
     button_rect = button_sprite.get_rect()
     button_rect.center = screen_size[0]/2, height
     
-    pg.draw.rect(screen, (150-100*with_bg, 25+100*with_bg, 25+100*with_bg), button_rect)
+    pg.draw.rect(screen, (150-100*with_bg, 25+100*with_bg, 25+200*with_bg), button_rect)
     if button_rect.collidepoint(p_mouse) and with_bg:
         pg.draw.rect(screen, (22, 100, 100), button_rect)
         if clicked: return 1
@@ -364,7 +387,7 @@ def button(text, font, height, p_mouse, clicked, screen_size, screen, with_bg=1)
 def collision_entities(shot, entity_data):
     for entity in entity_data:
         dist2shot = math.sqrt((shot[1]-entity[1])**2 + (shot[2]-entity[2])**2)
-        if dist2shot < 2: # heard a shot?
+        if dist2shot < 5: # heard a shot?
             entity[5] = 1
             if  dist2shot < 0.1 and shot[0] < 0.55:
                 entity[7] -= 1+shot[0] > 0.45
@@ -375,8 +398,9 @@ def movement(x_pos, y_pos, rot, rot_v, mapa, elapsed_time, p_mouse_target):
     
     if pg.mouse.get_focused():
         p_mouse = pg.mouse.get_rel()
-        p_mouse_target[0] += p_mouse[0]
-        p_mouse_target[1] += p_mouse[1]
+        if abs(p_mouse[0]) > 1: p_mouse_target[0] += p_mouse[0]
+        if abs(p_mouse[1]) > 1: p_mouse_target[1] += p_mouse[1]
+
         if abs(p_mouse_target[0]) > 1:
             rot = rot + min(max((p_mouse_target[0]/2)/200, -0.2), .2)
             p_mouse_target[0] /= 2
@@ -409,7 +433,7 @@ def check_wall_collisions(x_pos, y_pos, rot, forward, sideways, elapsed_time, de
     x_delta = x + delta_player*(forward*math.cos(rot) + sideways*math.sin(rot))
     y_delta = y + delta_player*(forward*math.sin(rot) - sideways*math.cos(rot))
 
-    if mapa[int(x_delta)][int(y_delta)] < 0 and np.sqrt((0.5-x%1)**2 + (0.5-y%1)**2) > 0.25:
+    if mapa[int(x_delta)][int(y_delta)] < 0 and np.sqrt((0.5-x%1)**2 + (0.5-y%1)**2) > 0.15:
             return x, y, 0
 
     if mapa[int(x_delta)][int(y_delta)] == 0:
